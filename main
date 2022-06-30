@@ -1,0 +1,57 @@
+import requests
+import json
+import pandas as pd 
+
+from datetime import timedelta, datetime
+
+headers = {
+            'x-api-key': '0e6160bb-d3e0-4a76-b474-250c13f6eed0',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+            }
+
+def append_value(dict_obj, key, value):
+    # Check if key exist in dict or not
+    if key in dict_obj:
+        # Key exist in dict.
+        # Check if type of value of key is list or not
+        if not isinstance(dict_obj[key], list):
+            # If type is not list then make it list
+            dict_obj[key] = [dict_obj[key]]
+        # Append the value in list
+        dict_obj[key].append(value)
+    else:
+        # As key is not in dict,
+        # so, add key-value pair
+        dict_obj[key] = value
+        
+def conveyanceTime(date):
+    url = "https://api.keeptruckin.com/v1/logs?start_date="+date+"&end_date="+date+"&per_page=100&page_no=1"
+    headers = {
+        'x-api-key': '0e6160bb-d3e0-4a76-b474-250c13f6eed0',
+        'User-Agent': 'DataOpsTeam',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+        }
+    response = requests.get(url, headers=headers).json()
+    dictionary = {}
+    for x in response['logs']:
+        duration = timedelta(hours = 0)
+        for y in x['log']['events']:
+            if y['event']['sds_type'] == 'pc':
+                duration += (datetime.strptime(y['event']['end_time'], '%Y-%m-%dT%H:%M:%SZ') - datetime.strptime(y['event']['start_time'], '%Y-%m-%dT%H:%M:%SZ'))
+        append_value(dictionary, x['log']['driver_company_id'], str(duration))
+    return dictionary
+                
+def main():
+    startDate = input('Enter Start Date (YYYY-MM-DD): ') 
+    endDate = input('Enter End Date (YYYY-MM-DD): ')
+    newDict = {}
+    drange = pd.date_range(startDate, endDate, freq = '1D')
+    for x in drange:
+        keyName = str(x.date())
+        newDict[keyName] = conveyanceTime(datetime.strftime(x, '%Y-%m-%d'))
+    df = pd.DataFrame.from_dict(newDict, orient='index')
+    df.to_csv('Personal_Conveyance_'+startDate+'_'+endDate+'.csv')
+    
+main()
